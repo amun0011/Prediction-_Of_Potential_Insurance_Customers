@@ -1,0 +1,724 @@
+---
+title: "Prediction of Potential Customers for Insurance Product"
+author: "Arunava Munshi"
+date: "22 April 2019"
+output:
+  word_document: default
+  pdf_document: default
+  html_document: default
+---
+# Project Description:
+
+## Introduction:
+The project is related to extracting knowledge from the car insurance data from an insurance company. In this project we are going to analyze the real world business data. The problem that will be solved by this project is mentioned below.
+
+#### Prediction: 
+Need to predict the customers who would be interested to buy the car insurance product.
+
+#### Explanation:
+Need to explain why such prediction is necessary to understand the potential customers.
+
+### Data Set:
+This project consists of three data-set.
+
+#### TICDATA2000.txt:
+This is the training data-set having 5822 rows and 86 columns, containing customer records. Out of the 86 columns first 43 columns are Sociology-Demographic data for the customers and rest are product ownership information. The Socio-Demographic data is derived from the zip code information that implies that areas with same zip codes have same Socio-Demographic attributes. Attribute 86: "CARAVAN" is the target variable.
+
+#### TICEVAL2000.txt:
+This is the test data set having 4000 rows and 85 columns. This data set does not have Attribute 86: "CARAVAN".
+
+#### TICTGTS2000.txt:
+This data set has the information about the customers who actually bought the car insurance, which is the basis to evaluate our prediction accuracy.
+
+The data description can be found at: [Data Description](http://liacs.leidenuniv.nl/~puttenpwhvander/library/cc2000/data.html)
+
+### Prediction Task:
+The prediction task here will be to find a set of 800 customers most likely to buy the car insurance policy that mostly match with the customers actually bought later on as per TICTGTS2000.txt.
+
+## Reading The Data:
+In this section the data sets are **ticdata2000.txt**, **ticeval2000.txt** and **tictgts2000.txt** are read into three dataframes such as **ticdata2000_df**, **ticeval2000_df** and **tictgts2000_df** respectively.
+
+```{r setup, include=FALSE}
+library(data.table)
+ticdata2000_df <- read.delim("ticdata2000.txt", header = FALSE, sep = "\t")
+ticeval2000_df <- read.delim("ticeval2000.txt", header = FALSE, sep = "\t")
+tictgts2000_df <- read.delim("tictgts2000.txt", header = FALSE, sep = "\t")
+setnames(tictgts2000_df, old=c("V1"), new=c("V86"))
+#tictgts2000_df$V86 <- factor(tictgts2000_df$V86)
+ticdata2000_df$V86 <- factor(ticdata2000_df$V86)
+```
+
+## Exploratory Data Analysis:
+Exploratory data analysis is required to understand the data well. Let's to some basic EDA on the training data. 
+
+### Data Summary:
+Let's implement the summary function to understand the training data.
+```{r}
+summary(ticdata2000_df)
+```
+From the above summary information, we have the following understandings -
+
+1. The column 1 **MOSTYPE** (Customer Subtype) has the maximum variance between 1 to 41.
+2. Other than that, all other data have low variance.
+3. The target variable **CARAVAN** only has two different values 0 and 1, from which we can logically conclude that either a policy is taken or not taken by a customer.
+
+### Data Types:
+Now let's check the data types for each and every column.
+```{r}
+str(ticdata2000_df)
+```
+
+From the above data-type information, the important takeaways are as follows.
+
+1. All the variables are integer type except for the column 86 (That we changed to factor).
+2. Social Classes (Columns 25 - 29) are represented as integer, indicating that they are categorical variables.
+3. Same concept goes for Income ranges (Columns 37 - 41), Columns related to Religion (Columns 6 - 9), as they seem to be categorical variables.
+
+### Unique Values:
+Now Let's check the unique values of different columns.
+
+```{r}
+lapply(ticdata2000_df, unique)
+```
+
+We have the below observations from the above output.
+
+1. There is no null values, NaN or missing values in any column, indicating that the data is possibly properly cleaned up or wrangled already.
+2. Column 1 (MOSTYPE) has most of the unique values from 1-41.
+3. We also see that every columns from 44 - 64 that are listed as **"Contribution to policies"** being integer indicates that they are categorical variables.
+4. We also notice that columns 65-85 are number of policies, which should not be categorical.
+5. Within the socio-demographic variables, incomes, religion etc. being integers indicates that they are categorical variables.
+
+### Correlation Among Variables:
+Now Let's try to find the correlation or level of association among variables.
+
+#### Correlation Among Socio-DemoGraphic Variables:
+Let's try to find the correlation among Sociology-Demographic Variables.
+
+```{r}
+library(lattice)
+library(dplyr)
+levelplot(cor(select(ticdata2000_df, c(V1:V43))), scales = list(x = list(rot = 90)))
+```
+
+As we can see here, there is no significant correlations between any two variables. So we can ignore this.
+
+#### Correlation Among Product Ownership Variables:
+Let's now try to find the correlation among product ownership Variables.
+
+```{r}
+library(lattice)
+levelplot(cor(select(ticdata2000_df, c(V44:V85))), scales = list(x = list(rot = 90)))
+```
+
+Now, here we find the correlation between few variables such as between 44-65, 45-66, 47-68 and so on to 64-85. So we can see that Contribution of respective insurance policies are strongly correlated to the corresponding number of those policies, which is logically correct. The Pearson coefficients are shown below -
+
+```{r}
+cor(ticdata2000_df$V44,ticdata2000_df$V65)
+cor(ticdata2000_df$V45,ticdata2000_df$V66)
+cor(ticdata2000_df$V46,ticdata2000_df$V67)
+cor(ticdata2000_df$V47,ticdata2000_df$V68)
+cor(ticdata2000_df$V48,ticdata2000_df$V69)
+cor(ticdata2000_df$V49,ticdata2000_df$V70)
+cor(ticdata2000_df$V50,ticdata2000_df$V71)
+cor(ticdata2000_df$V51,ticdata2000_df$V72)
+cor(ticdata2000_df$V52,ticdata2000_df$V73)
+cor(ticdata2000_df$V53,ticdata2000_df$V74)
+cor(ticdata2000_df$V54,ticdata2000_df$V75)
+cor(ticdata2000_df$V55,ticdata2000_df$V76)
+cor(ticdata2000_df$V56,ticdata2000_df$V77)
+cor(ticdata2000_df$V57,ticdata2000_df$V78)
+cor(ticdata2000_df$V58,ticdata2000_df$V79)
+cor(ticdata2000_df$V59,ticdata2000_df$V80)
+cor(ticdata2000_df$V60,ticdata2000_df$V81)
+cor(ticdata2000_df$V61,ticdata2000_df$V82)
+cor(ticdata2000_df$V62,ticdata2000_df$V83)
+cor(ticdata2000_df$V63,ticdata2000_df$V84)
+cor(ticdata2000_df$V64,ticdata2000_df$V85)
+```
+
+So, it is proven that these variables are highly correlated among each other.
+
+#### Correlation Among Socio-Demographic and Product Ownership Variables:
+If we plot the same graph for the whole dataframe, we don't find any correlation between Socio-Demographic and Product Ownership set. So we can discard any possibility of such relationship.
+
+```{r}
+library(lattice)
+levelplot(cor(ticdata2000_df[,-86]), scales = list(x = list(rot = 90)))
+```
+
+The above statement is proven from the above plot. So we may ignore any further possibility of revisiting these variables.
+
+## Variable Interactions:
+Now it comes to the initial interactions, we need to consider the interactions among the predictors and the interactions between the predictors and the target. We will do that in two steps.
+
+### Evaluating Interactions among the Product Ownership Variables:
+Because we know that there are strong correlation among some of the product ownership variables mentioned earlier, we need to check if there could be an interaction among these variables through any transformation. Logically speaking, Contribution of each insurance policy should be multiplied with its number to realize the best effect (I have checked the other interactions such as addition, subtraction etc. and no other transformations worked as good as multiplication.). The interactions are mentioned below and multiplications are added into the new columns of the dataframe **ticdata2000_df**.
+
+```{r}
+ticdata2000_df$V44V65 <- with(ticdata2000_df, V44 * V65)
+ticdata2000_df$V45V66 <- with(ticdata2000_df, V45 * V66)
+ticdata2000_df$V46V67 <- with(ticdata2000_df, V46 * V67)
+ticdata2000_df$V47V68 <- with(ticdata2000_df, V47 * V68)
+ticdata2000_df$V48V69 <- with(ticdata2000_df, V48 * V69)
+ticdata2000_df$V49V70 <- with(ticdata2000_df, V49 * V70)
+ticdata2000_df$V50V71 <- with(ticdata2000_df, V50 * V71)
+ticdata2000_df$V51V72 <- with(ticdata2000_df, V51 * V72)
+ticdata2000_df$V52V73 <- with(ticdata2000_df, V52 * V73)
+ticdata2000_df$V53V74 <- with(ticdata2000_df, V53 * V74)
+ticdata2000_df$V54V75 <- with(ticdata2000_df, V54 * V75)
+ticdata2000_df$V55V76 <- with(ticdata2000_df, V55 * V76)
+ticdata2000_df$V56V77 <- with(ticdata2000_df, V56 * V77)
+ticdata2000_df$V57V78 <- with(ticdata2000_df, V57 * V78)
+ticdata2000_df$V58V79 <- with(ticdata2000_df, V58 * V79)
+ticdata2000_df$V59V80 <- with(ticdata2000_df, V59 * V80)
+ticdata2000_df$V60V81 <- with(ticdata2000_df, V60 * V81)
+ticdata2000_df$V61V82 <- with(ticdata2000_df, V61 * V82)
+ticdata2000_df$V62V83 <- with(ticdata2000_df, V62 * V83)
+ticdata2000_df$V63V84 <- with(ticdata2000_df, V63 * V84)
+ticdata2000_df$V64V85 <- with(ticdata2000_df, V64 * V85)
+```
+
+### Chi Square Test on All the Variables and Their Interactions:
+Now once the correlations are known among the predictors, it's the time to identify the relation between each predictors & their interactions and target variable. The best way to find the relation is to do a Chi Square test. Why this is best? Chi Square test between two potential variables first seeks to reject a null hypothesis "There is no relationship between two variables". It works best for categorical variables. We already know that the target variable CARAVAN is a categorical variable and from the previous analysis we came to know that no other table column is continuous. So we can conclude that a Chi Square test should be wise decision here.
+
+```{r, warning=FALSE}
+CHI <- function(sppx, sppy) 
+{test <- chisq.test(sppx, sppy, correct=FALSE) 
+return(test)
+}
+colnames_vec = c()
+count = 0
+for (colnames in colnames(ticdata2000_df)){
+    test <- CHI(ticdata2000_df[colnames], ticdata2000_df$V86)
+    if (test[3] < 0.01){
+    colnames_vec <- c(colnames_vec, colnames)
+    count = count + 1
+        }
+}
+print(colnames_vec)
+```
+
+The above code conducts a Chi Square test between every predictor or every interaction and the target variable. The significance level for the test is set to 0.01, means with 99% confidence, the null hypothesis is attempted to be rejected. Because we want to consider as much information relevant to the target, so we are becoming a bit more conservative. The variables which are related to the target have been mentioned in the summary.
+
+```{r}
+length(colnames_vec)
+```
+
+So there are 47 such variables. All these variables are put into a separate dataframe named **ticdata2000_df_subset1**. The test dataframe **ticeval2000_df** is also updated with the new features.
+
+```{r}
+library(dplyr)
+ticdata2000_df_subset1 <- select(ticdata2000_df, colnames_vec)
+colnames(ticdata2000_df_subset1)
+head(ticdata2000_df_subset1)
+ticeval2000_df$V44V65 <- with(ticeval2000_df, V44 * V65)
+ticeval2000_df$V47V68 <- with(ticeval2000_df, V47 * V68)
+ticeval2000_df$V49V70 <- with(ticeval2000_df, V49 * V70)
+ticeval2000_df$V57V78 <- with(ticeval2000_df, V57 * V78)
+ticeval2000_df$V59V80 <- with(ticeval2000_df, V59 * V80)
+ticeval2000_df$V61V82 <- with(ticeval2000_df, V61 * V82)
+ticeval2000_df$V64V85 <- with(ticeval2000_df, V64 * V85)
+```
+```{r}
+head(ticeval2000_df)
+```
+
+## Feature Selection:
+After we get an idea on which are the potential variables which could finally affect the target variable from the Chi square Test, it's time to do the Feature Selection. Feature selection is more insightful and nuanced technique to pick up the potential predictors. Feature Selection picks up the features for a target variable through some standardized algorithm. For the case of this project, we examine some famous feature selection techniques.
+
+1. Recursive Feature Elimination
+2. Forward Subset Selection
+3. Backward Subset Selection
+4. Lasso
+
+We also have another feature selection named **"Best Subset Selection"** Algorithm. But because this algorithm makes $$2^p$$ iterations and any number of iterations more than $$2^{10}$$ is not advisable, so it is not practical for 47 predictors.
+
+### Recursive Feature Elimination (RFE)
+RFE is very efficient feature selection method that recursively removes the weakest features. The features are ranked according to the attributes of the model and it attempts to eliminate some features in every loop. The best thing with this algorithm is that it also handles col-linearity among the predictors itself. But one disadvantage of RFE is that it is computationally expensive because we may have to train increasing number of models. The below code is for RFE for "Naive Bayes" (We can select ML techniques in RFE as well, this is another example) below, that we will use later on during model building. For the purpose of this project we are considering only 1st 10 ranked variables thrown by RFE.
+
+```{r, warning=FALSE}
+library(caret)
+subsets <- c(10, 20)
+drops <- c("V86")
+ticdata2000_df_subset1$V86 <- factor(ticdata2000_df_subset1$V86)
+ctrl <- rfeControl(functions = nbFuncs,
+                   method = "cv",
+                   number = 10,
+                   verbose = FALSE)
+
+nbProfile <- rfe(ticdata2000_df_subset1[, !(names(ticdata2000_df_subset1) %in% drops)], ticdata2000_df_subset1$V86,
+                 sizes = subsets,
+                 rfeControl = ctrl)
+
+choose_colm_RFE <- nbProfile$optVariables[1:10]
+choose_colm_RFE
+```
+
+The above output shows the best 10 predictors as per the algorithm.
+
+### Forward Subset Selection (FSS)
+FSS is a feature selection technique that recursively selects feature starting from just one feature. In the 1st iteration the algorithm adds every other predictors to itself and check and compares the accuracy of these newly created models and keeps the best one in that iteration. The next iteration will start with the best model selected in the previous iteration and will add each of remaining predictor one by one and evaluate the each models one by one and again keep the best one among then. This process will keep on going until there is no predictor remaining. The advantage of this method is that it is computationally very efficient and takes very less time for large number of predictors. But, there are few disadvantages of this method -
+
+1. It is greedy method, so it can lead to over-fitting sometimes.
+2. It cannot discard any variable selected previously and is somewhat conservative.
+3. It cannot handle multi-collinearity.
+
+This algorithm gives penalty to the bias.The code is written below.
+
+```{r, warning=FALSE}
+library(leaps)
+
+regfit.fwd <- regsubsets(V86 ~ ., data = ticdata2000_df_subset1, 
+                                  nvmax = NULL, method = "forward")
+
+reg.summary.fwd <- summary(regfit.fwd)
+
+par(mfrow = c(2, 2))
+
+plot(reg.summary.fwd$cp, xlab = "Number of variables", 
+                         ylab = "C_p", type = "l")
+
+points(which.min(reg.summary.fwd$cp),          reg.summary.fwd$cp[which.min(reg.summary.fwd$cp)], 
+       col = "red", cex = 2, pch = 20)
+
+plot(reg.summary.fwd$bic, xlab = "Number of variables", 
+                          ylab = "BIC", type = "l")
+
+points(which.min(reg.summary.fwd$bic), reg.summary.fwd$bic[which.min(reg.summary.fwd$bic)], 
+       col = "red", cex = 2, pch = 20)
+
+plot(reg.summary.fwd$adjr2, xlab = "Number of variables", 
+                            ylab = "Adjusted R^2", type = "l")
+
+points(which.max(reg.summary.fwd$adjr2), reg.summary.fwd$adjr2[which.max(reg.summary.fwd$adjr2)], 
+       col = "red", cex = 2, pch = 20)
+
+plot(reg.summary.fwd$rss, xlab = "Number of variables", 
+                          ylab = "RSS", type = "l")
+
+mtext("Plots of C_p, BIC, adjusted R^2 and RSS for forward stepwise selection", side = 3, line = -2, outer = TRUE)
+```
+We have evaluated the model against four measurement criteria. $$R^2$$ is the amount of variation in the model outcome that are being explained by the predictors. BIC is a measure of penalty for inclusion of new feature using Bayesian technique. C_P is is also another measure of penalty for inclusion of new feature. $$R^2$$ Adjusted is a variation $$R^2$$ which gives penalty on feature inclusion. The red points on the above grasp show the optimal number of features using each measurement criteria. It highest number of optimal features is advised by $$R^2$$ Adjusted and we are keeping this number in order to avoid any feature miss, which may otherwise affects prediction accuracy of final model.
+
+The optimal features selected by $$R^2$$ Adjusted is shown below.
+
+```{r}
+print("Number of Optimal Coefficients by Adjusted R^2: ")
+max_adjr2_fwd = which.max(reg.summary.fwd$adjr2)
+print(max_adjr2_fwd)
+print("The Features selected: ")
+coef(regfit.fwd, max_adjr2_fwd)
+choose_colm_FSS <- c("V7", "V10", "V12", "V16", "V18", "V19", "V22", "V23", "V24", "V28", "V30", "V31", "V32", "V35", "V36", "V40", "V42", "V43", "V59", "V61", "V64", "V80", "V82", "V85", "V44V65", "V47V68", "V64V85", "V57V78")
+print("Final Features selected: ")
+print(choose_colm_FSS)
+print("Final Length: ")
+length(choose_colm_FSS)
+```
+
+So I can see that, Adjusted $$R^2$$ Chooses 33 variables but, out of them some are interactions which indicates that the independent variables of those interactions can be removed. So the final set of variables from $$R^2$$ Adjusted are shown finally, the count of which is 28.
+
+### Backward Subset Selection (BSS)
+The BSS algorithm is almost similar to Forward Selection but only difference is that the algo starts with all features at first and iteratively removes one by one in the same way FSS does it from the front. The advantages and disadvantages are similar as of FSS. The code for the same is given below.
+
+```{r}
+library(leaps)
+regfit.bwd <- regsubsets(V86 ~ ., data = ticdata2000_df_subset1, 
+                                  nvmax = NULL, method = "backward")
+
+reg.summary.bwd <- summary(regfit.bwd)
+
+par(mfrow = c(2, 2))
+
+plot(reg.summary.bwd$cp, xlab = "Number of variables", 
+                        ylab = "C_p", type = "l")
+
+points(which.min(reg.summary.bwd$cp), reg.summary.bwd$cp[which.min(reg.summary.bwd$cp)], 
+                col = "red", cex = 2, pch = 20)
+
+plot(reg.summary.bwd$bic, xlab = "Number of variables", 
+                          ylab = "BIC", type = "l")
+
+points(which.min(reg.summary.bwd$bic), reg.summary.bwd$bic[which.min(reg.summary.bwd$bic)], 
+                 col = "red", cex = 2, pch = 20)
+
+plot(reg.summary.bwd$adjr2, xlab = "Number of variables", 
+                            ylab = "Adjusted R^2", type = "l")
+
+points(which.max(reg.summary.bwd$adjr2), reg.summary.bwd$adjr2[which.max(reg.summary.bwd$adjr2)], 
+                 col = "red", cex = 2, pch = 20)
+
+plot(reg.summary.bwd$rss, xlab = "Number of variables", 
+                          ylab = "RSS", type = "l")
+
+mtext("Plots of C_p, BIC, adjusted R^2 and RSS for forward stepwise selection", side = 3, line = -2, outer = TRUE)
+```
+Again, on the same ground we go for the features selected by the $$R^2$$ Adjusted. The optimal features selected by $$R^2$$ Adjusted is shown below.
+
+```{r}
+print("Number of Optimal Coefficients by Adjusted R^2: ")
+max_adjr2_bwd = which.max(reg.summary.bwd$adjr2)
+print(max_adjr2_bwd)
+print("The Features selected: ")
+coef(regfit.bwd, max_adjr2_bwd)
+choose_colm_BSS <- c("V1", "V5", "V7", "V10", "V12", "V16", "V18", "V19", "V22", "V24", "V28", "V30", "V31", "V32", "V35", "V36", "V42", "V43", "V57", "V59", "V61", "V80", "V82", "V44V65", "V47V68", "V64V85", "V57V78")
+print("Final Features selected: ")
+print(choose_colm_BSS)
+print("Final Length: ")
+length(choose_colm_BSS)
+```
+So I can see that, Adjusted $$R^2$$ Chooses 32 variables but, out of them some are interactions which indicates that the independent variables of those interactions can be removed. So the final set of variables from $$R^2$$ Adjusted are shown finally, the count of which is 27.
+
+### Lasso
+
+Lasso is a shrinkage technique that tries to do feature selection by shrinking the regression coefficients towards zero by adding a penalty expression on variance. While Subset selection methods penalizes bias, Lasso concentrates into variance. Lasso has an advantage over subset selection and that is, it never concentrates into eliminating predictors to make a better fit. But it has some disadvantages too.
+1. Because it does not concentrate into model fitting, it sometimes leads to under-fitting.
+2. It cannot also handle multi-colinearity.
+```{r}
+str(ticdata2000_df_subset1)
+```
+
+```{r, warning=FALSE}
+library(glmnet)
+temp_df <-ticdata2000_df_subset1
+temp_df$V86 <- as.integer(temp_df$V86)
+xmat <- model.matrix(V86 ~ ., data = temp_df)[, -1]
+cv.lasso <- cv.glmnet(xmat, temp_df$V86, alpha = 1)
+plot(cv.lasso)
+```
+Now, we choose the best value of $$log(Lambda)$$ by minimizing the Mean-Squared_Error. Clearly, we don't need to consider the value of $$log(Lambda)$$ one standard error away from $$min(log(Lambda))$$ because that will lead to the number of predictors close to zero. The R code for the same is mentioned below.
+
+```{r}
+bestlam <- cv.lasso$lambda.min
+print("Best Log(Lambda): ")
+bestlam
+fit.lasso <- glmnet(xmat, temp_df$V86, alpha = 1)
+predict(fit.lasso, s = bestlam, type = "coefficients")[1:47, ]
+```
+So we have the features now and we can also validate that if we take $$log(Lambda)$$ value one standard error away, we end up with having no features. The code for the same is below.
+```{r}
+bestlam <- cv.lasso$lambda.1se
+print("Best Log(Lambda): ")
+bestlam
+fit.lasso <- glmnet(xmat, temp_df$V86, alpha = 1)
+predict(fit.lasso, s = bestlam, type = "coefficients")[1:47, ]
+```
+
+```{r}
+choose_colm_LASSO <- c("V5", "V7", "V10", "V16", "V18", "V22", 
+"V28", "V30", "V32", "V40", "V42", "V43", "V44",
+"V57", "V59", "V76", "V82", "V85", "V47V68")
+print("Final Features selected: ")
+print(choose_colm_LASSO)
+print("Final Length: ")
+length(choose_colm_LASSO)
+
+```
+So I can see that, We are coming up with 19 variables only.
+
+## Model Building and Checking Prediction Accuracy:
+Now the next step will be to build models on the selected features and compare the models on their accuracy. As part of this project we will follow two Classification techniques -
+1. Naive Bayes
+2. Logistics Regression
+
+Because the target here is a categorical variable, so this is a classification problem.
+
+### Naive Bayes:
+Naive Bayes is a classification technique that takes into account Bayes Theorem of probability with an assumption of independence among the predictors. It assumes that a certain feature in a model within a class is not related to any other features present in that class. Though sounds a bit extreme, but this feature of Naive Bayes provides extreme flexibility. My choice for Naive Bayes algorithm in this case goes for the below reasons.
+
+1. The model is very easy to build and at the same time, it is very useful for small to very very large data sets. So it is quite flexible.
+2. The nature of conditional independence, though too extreme, gives better output than other complex models very often.
+3. There is no constraint on training data. Because here, we have very less number of positive (People who bought insurance plan) cases in target variable as compared to the negative cases (People who did not buy insurance plan), this situation does not affect the Naive Bayes Model.
+
+We will only use the feature selected by Recursive Feature Elimination because all other methods are meant for linear models (which we shall use later on in Logistic Regression). The code for Naive Bayes is written below. We will use 10 fold cross validation repeated 10 times below because it is good for trading of variance.
+
+```{r, warning=FALSE}
+library(naivebayes)
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
+
+nb_train_df <- ticdata2000_df_subset1[,c(choose_colm_RFE, 'V86')]
+model <- train(V86 ~ ., data = nb_train_df, method = "naive_bayes", trControl = ctrl)
+
+nb_test_df <- ticeval2000_df[,c(choose_colm_RFE)]
+nb_pred <- predict(model, nb_test_df, type="prob")   
+
+top_800_customers_nb <- head(nb_pred[order(-nb_pred[, c(2)]), ], n=800)  
+nb_test_df$V86 <- as.numeric(0)  
+nb_test_df[as.numeric(rownames(top_800_customers_nb)), c("V86")] <- 1  
+predicted_values <- nb_test_df[, c("V86")] 
+table(tictgts2000_df$V86, predicted_values)
+mean(tictgts2000_df$V86 == predicted_values)
+```
+
+The above code predicts the 1st 800 customers who are likely to buy the car insurance policy and checks how many of these customers actually bought it. It can be seen that out of these 800 predictions 110 got accurate from 238 actual predictions, means the prediction accuracy for customers who actually bought the insurance is 46% approximately. The overall prediction accuracy is however very high i.e 79.5%.
+
+We also tried it through bootstrapping, which also gives the same result.
+```{r}
+library(naivebayes)
+ctrl <- trainControl(method = "boot")
+
+nb_train_df <- ticdata2000_df_subset1[,c(choose_colm_RFE, 'V86')]
+model <- train(V86 ~ ., data = nb_train_df, method = "naive_bayes", trControl = ctrl)
+
+nb_test_df <- lm_test_df <- ticeval2000_df[,c(choose_colm_RFE)]
+nb_pred <- predict(model, nb_test_df, type="prob")   
+
+top_800_customers_nb <- head(nb_pred[order(-nb_pred[, c(2)]), ], n=800)  
+nb_test_df$V86 <- as.numeric(0)  
+nb_test_df[as.numeric(rownames(top_800_customers_nb)), c("V86")] <- 1  
+predicted_values <- nb_test_df[, c("V86")] 
+table(tictgts2000_df$V86, predicted_values)
+mean(tictgts2000_df$V86 == predicted_values)
+```
+
+### Logistic Regression:
+Logistic Regression is a linear classification algorithm. The log-off for the Logistic regression is a linear model. The reason for doing logistic regression is mentioned below -
+1. It is very simple method and the model is very easy to build.
+2. It works really well when there are only two classes within the predictor, which is the case here.
+
+**Here, we could have also used Linear Discriminant Analysis (LDA) and Quadratic Discriminant Analysis (QDA) techniques as well. But, considering that Logistic Regression works pretty well for target variable having exactly 2 classes, we will not get any advantage of doing LDA and QDA here. So we are not using them in this case.**
+
+We would be using all feature selection techniques here.
+
+#### Model Using Features Selected From Recursive Feature Elimination:
+Because RFE is algorithm specific, we need to select the feature using the option **functions =lmFuncs**.
+
+```{r, warning=FALSE}
+library(caret)
+subsets <- c(10, 20)
+drops <- c("V86")
+ticdata2000_df_subset1$V86 <- as.integer(ticdata2000_df_subset1$V86)
+ctrl <- rfeControl(functions =lmFuncs,
+                   method = "cv",
+                   number = 10,
+                   verbose = FALSE)
+
+lmProfile <- rfe(ticdata2000_df_subset1[, !(names(ticdata2000_df_subset1) %in% drops)], ticdata2000_df_subset1$V86,
+                 sizes = subsets,
+                 rfeControl = ctrl)
+choose_colm_RFE <- lmProfile$optVariables[1:10]
+choose_colm_RFE
+```
+
+After the features have been selected we can put them into the model with 10 fold cross validation with 10 repetitions same as done before.
+```{r, warning=FALSE}
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
+lm_train_df <- ticdata2000_df_subset1[,c(choose_colm_RFE, 'V86')]
+lm_model <- train(V86 ~ ., data = lm_train_df, method = "glm", trControl = ctrl)
+lm_test_df <- ticeval2000_df[,c(choose_colm_RFE)]
+
+lm_test_df <- cbind(lm_test_df, tictgts2000_df)
+
+lm_pred <- predict(lm_model, lm_test_df)   
+lm_pred <- cbind(nb_pred, as.data.frame(lm_pred))
+top_800_customers_lm <- head(lm_pred[order(-lm_pred[, c(3)]), ], n=800)  
+lm_test_df$V86 <- as.numeric(0)  
+lm_test_df[as.numeric(rownames(top_800_customers_lm)), c("V86")] <- 1  
+predicted_values <- lm_test_df[, c("V86")] 
+table(tictgts2000_df$V86, predicted_values)
+mean(tictgts2000_df$V86 == predicted_values)
+```
+The above code predicts the 1st 800 customers who are likely to buy the car insurance policy and checks how many of these customers actually bought it. It can be seen that out of these 800 predictions 101 got accurate from 238 actual predictions, means the prediction accuracy for customers who actually bought the insurance is 42% approximately. The overall prediction accuracy is however very high i.e 79.1%. So it can be seen that Naive Bayes predicted with better accuracy than did Logistic Regression.
+
+We also tried it through bootstrapping, which also gives the same result.
+```{r, warning=FALSE}
+ctrl <- trainControl(method = "boot")
+lm_train_df <- ticdata2000_df_subset1[,c(choose_colm_RFE, 'V86')]
+lm_model <- train(V86 ~ ., data = lm_train_df, method = "glm", trControl = ctrl)
+lm_test_df <- ticeval2000_df[,c(choose_colm_RFE)]
+
+lm_test_df <- cbind(lm_test_df, tictgts2000_df)
+
+lm_pred <- predict(lm_model, lm_test_df)   
+lm_pred <- cbind(nb_pred, as.data.frame(lm_pred))
+top_800_customers_lm <- head(lm_pred[order(-lm_pred[, c(3)]), ], n=800)  
+lm_test_df$V86 <- as.numeric(0)  
+lm_test_df[as.numeric(rownames(top_800_customers_lm)), c("V86")] <- 1  
+predicted_values <- lm_test_df[, c("V86")] 
+table(tictgts2000_df$V86, predicted_values)
+mean(tictgts2000_df$V86 == predicted_values)
+```
+#### Model Using Features Selected From Forward Subset Selection:
+Let's now do the same experiment on the subset got from Forward Subset Selection with 10 fold cross validation with repeats 10 times.
+```{r, warning=FALSE}
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
+lm_train_df <- ticdata2000_df_subset1[,c(choose_colm_FSS, 'V86')]
+lm_model <- train(V86 ~ ., data = lm_train_df, method = "glm", trControl = ctrl)
+lm_test_df <- ticeval2000_df[,c(choose_colm_FSS)]
+
+lm_test_df <- cbind(lm_test_df, tictgts2000_df)
+
+lm_pred <- predict(lm_model, lm_test_df)   
+lm_pred <- cbind(nb_pred, as.data.frame(lm_pred))
+top_800_customers_lm <- head(lm_pred[order(-lm_pred[, c(3)]), ], n=800)  
+lm_test_df$V86 <- as.numeric(0)  
+lm_test_df[as.numeric(rownames(top_800_customers_lm)), c("V86")] <- 1  
+predicted_values <- lm_test_df[, c("V86")] 
+table(tictgts2000_df$V86, predicted_values)
+mean(tictgts2000_df$V86 == predicted_values)
+```
+The above code predicts the 1st 800 customers who are likely to buy the car insurance policy and checks how many of these customers actually bought it. It can be seen that out of these 800 predictions 113 got accurate from 238 actual predictions, means the prediction accuracy for customers who actually bought the insurance is 47.4% approximately. The overall prediction accuracy is however very high i.e 79.7%. So it can be seen that Logistic Regression with Forward subset selection as feature selection method predicted with better accuracy than did Naive Bayes.
+
+We also tried it through bootstrapping, which also gives the same result.
+```{r, warning=FALSE}
+ctrl <- trainControl(method = "boot")
+lm_train_df <- ticdata2000_df_subset1[,c(choose_colm_FSS, 'V86')]
+lm_model <- train(V86 ~ ., data = lm_train_df, method = "glm", trControl = ctrl)
+lm_test_df <- ticeval2000_df[,c(choose_colm_FSS)]
+
+lm_test_df <- cbind(lm_test_df, tictgts2000_df)
+
+lm_pred <- predict(lm_model, lm_test_df)   
+lm_pred <- cbind(nb_pred, as.data.frame(lm_pred))
+top_800_customers_lm <- head(lm_pred[order(-lm_pred[, c(3)]), ], n=800)  
+lm_test_df$V86 <- as.numeric(0)  
+lm_test_df[as.numeric(rownames(top_800_customers_lm)), c("V86")] <- 1  
+predicted_values <- lm_test_df[, c("V86")] 
+table(tictgts2000_df$V86, predicted_values)
+mean(tictgts2000_df$V86 == predicted_values)
+```
+
+#### Model Using Features Selected From Backward Subset Selection:
+Let's now do the same experiment on the subset got from Backward Subset Selection with 10 fold cross validation with repeats 10 times.
+```{r, warning=FALSE}
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
+lm_train_df <- ticdata2000_df_subset1[,c(choose_colm_BSS, 'V86')]
+lm_model <- train(V86 ~ ., data = lm_train_df, method = "glm", trControl = ctrl)
+lm_test_df <- ticeval2000_df[,c(choose_colm_BSS)]
+
+lm_test_df <- cbind(lm_test_df, tictgts2000_df)
+
+lm_pred <- predict(lm_model, lm_test_df)   
+lm_pred <- cbind(nb_pred, as.data.frame(lm_pred))
+top_800_customers_lm <- head(lm_pred[order(-lm_pred[, c(3)]), ], n=800)  
+lm_test_df$V86 <- as.numeric(0)  
+lm_test_df[as.numeric(rownames(top_800_customers_lm)), c("V86")] <- 1  
+predicted_values <- lm_test_df[, c("V86")] 
+table(tictgts2000_df$V86, predicted_values)
+mean(tictgts2000_df$V86 == predicted_values)
+```
+The above code predicts the 1st 800 customers who are likely to buy the car insurance policy and checks how many of these customers actually bought it. It can be seen that out of these 800 predictions 113 got accurate from 238 actual predictions, means the prediction accuracy for customers who actually bought the insurance is 50% approximately. The overall prediction accuracy is however very high i.e 79.9%. So it can be seen that Logistic Regression with Backward subset selection as feature selection method predicted with better accuracy than did  Logistic Regression with Forward subset selection as feature selection.
+
+We also tried it through bootstrapping, which also gives the same result.
+```{r, warning=FALSE}
+ctrl <- trainControl(method = "boot")
+lm_train_df <- ticdata2000_df_subset1[,c(choose_colm_BSS, 'V86')]
+lm_model <- train(V86 ~ ., data = lm_train_df, method = "glm", trControl = ctrl)
+lm_test_df <- ticeval2000_df[,c(choose_colm_BSS)]
+
+lm_test_df <- cbind(lm_test_df, tictgts2000_df)
+
+lm_pred <- predict(lm_model, lm_test_df)   
+lm_pred <- cbind(nb_pred, as.data.frame(lm_pred))
+top_800_customers_lm <- head(lm_pred[order(-lm_pred[, c(3)]), ], n=800)  
+lm_test_df$V86 <- as.numeric(0)  
+lm_test_df[as.numeric(rownames(top_800_customers_lm)), c("V86")] <- 1  
+predicted_values <- lm_test_df[, c("V86")] 
+table(tictgts2000_df$V86, predicted_values)
+mean(tictgts2000_df$V86 == predicted_values)
+```
+
+#### Model Using Features Selected From LASSO:
+Let's now do the same experiment on the subset got from LASSO with 10 fold cross validation with repeats 10 times.
+```{r, warning=FALSE}
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
+lm_train_df <- ticdata2000_df_subset1[,c(choose_colm_LASSO, 'V86')]
+lm_model <- train(V86 ~ ., data = lm_train_df, method = "glm", trControl = ctrl)
+lm_test_df <- ticeval2000_df[,c(choose_colm_LASSO)]
+
+lm_test_df <- cbind(lm_test_df, tictgts2000_df)
+
+lm_pred <- predict(lm_model, lm_test_df)   
+lm_pred <- cbind(nb_pred, as.data.frame(lm_pred))
+top_800_customers_lm <- head(lm_pred[order(-lm_pred[, c(3)]), ], n=800)  
+lm_test_df$V86 <- as.numeric(0)  
+lm_test_df[as.numeric(rownames(top_800_customers_lm)), c("V86")] <- 1  
+predicted_values <- lm_test_df[, c("V86")] 
+table(tictgts2000_df$V86, predicted_values)
+mean(tictgts2000_df$V86 == predicted_values)
+```
+The above code predicts the 1st 800 customers who are likely to buy the car insurance policy and checks how many of these customers actually bought it. It can be seen that out of these 800 predictions 113 got accurate from 238 actual predictions, means the prediction accuracy for customers who actually bought the insurance is 49.5% approximately. The overall prediction accuracy is however very high i.e 79.9%. So, in this case Logistic Regression with LASSO is working almost as accurately as, if not completely, the case for Logistic Regression with Backward Subset Selection as feature selection technique. But, in this case we are getting much simpler model with just 19 features as compared to the model with 27 features observed by Backward Subset Selection. So we keep this model observed by LASSO as our main model to consider.
+
+We also tried it through bootstrapping, which also gives the same result.
+```{r, warning=FALSE}
+ctrl <- trainControl(method = "boot")
+lm_train_df <- ticdata2000_df_subset1[,c(choose_colm_LASSO, 'V86')]
+lm_model <- train(V86 ~ ., data = lm_train_df, method = "glm", trControl = ctrl)
+lm_test_df <- ticeval2000_df[,c(choose_colm_LASSO)]
+
+lm_test_df <- cbind(lm_test_df, tictgts2000_df)
+
+lm_pred <- predict(lm_model, lm_test_df)   
+lm_pred <- cbind(nb_pred, as.data.frame(lm_pred))
+top_800_customers_lm <- head(lm_pred[order(-lm_pred[, c(3)]), ], n=800)  
+lm_test_df$V86 <- as.numeric(0)  
+lm_test_df[as.numeric(rownames(top_800_customers_lm)), c("V86")] <- 1  
+predicted_values <- lm_test_df[, c("V86")] 
+table(tictgts2000_df$V86, predicted_values)
+mean(tictgts2000_df$V86 == predicted_values)
+```
+
+Now, let's see if can further optimize the number of features by not hampering the model significantly.
+
+#### Doing Further Model Investigation:
+Now let's try to investigate the model named **lm_model** closely. In order to do that we need to do a summary on that.
+
+```{r}
+summary(lm_model)
+```
+Let's 1st target the variables very high P-values and remove them. So accordingly, we try removing the variables V5, V42 and V76 and checking the model's prediction accuracy.
+```{r, warning=FALSE}
+choose_colm_LASSO_subset1 <- c("V7", "V10", "V16", "V18", "V22", 
+"V28", "V30", "V32", "V40", "V43", "V44",
+"V57", "V59", "V82", "V85", "V47V68")
+ctrl <- trainControl(method = "repeatedcv", number = 10, repeats = 10)
+lm_train_df <- ticdata2000_df_subset1[,c(choose_colm_LASSO_subset1, 'V86')]
+lm_model_sb1 <- train(V86 ~ ., data = lm_train_df, method = "glm", trControl = ctrl)
+lm_test_df <- ticeval2000_df[,c(choose_colm_LASSO_subset1)]
+
+lm_test_df <- cbind(lm_test_df, tictgts2000_df)
+
+lm_pred <- predict(lm_model_sb1, lm_test_df)   
+lm_pred <- cbind(nb_pred, as.data.frame(lm_pred))
+top_800_customers_lm <- head(lm_pred[order(-lm_pred[, c(3)]), ], n=800)  
+lm_test_df$V86 <- as.numeric(0)  
+lm_test_df[as.numeric(rownames(top_800_customers_lm)), c("V86")] <- 1  
+predicted_values <- lm_test_df[, c("V86")] 
+table(tictgts2000_df$V86, predicted_values)
+mean(tictgts2000_df$V86 == predicted_values)
+```
+The above code predicts the 1st 800 customers who are likely to buy the car insurance policy and checks how many of these customers actually bought it. It can be seen that out of these 800 predictions 115 got accurate from 238 actual predictions, means the prediction accuracy for customers who actually bought the insurance is 48.31% approximately. The overall prediction accuracy is however very high i.e 79.8%. So there is a slight decrease in accuracy against a simpler model, which is pretty acceptable. So we keep this model.
+
+**We have tried to make the model simpler further with several other combinations of existing features and for each and every case, it is badly hampering the prediction accuracy. so we keep this as our final model.**
+
+## Conclusion
+
+So it can be concluded that **"Logistic Regression"** is the best classification algorithm for the given data considering the prediction accuracy. The final features which are significantly affecting target variable -
+
+1. MGODPR Protestant - Column 7
+2. MRELGE Married - column 10
+3. MOPLHOOG High level education - Column 16
+4. MOPLLAAG Lower level education - column 18
+5. MBERMIDD Middle management - column 22
+6. MSKC Social class C - column 28
+7. MHHUUR Rented house - column 30
+8. MAUT1 1 car - column 32
+9. MINK7512 Income 75-122.000 - column 40
+10. MKOOPKLA Purchasing power class - column 43
+11. PWAPART Contribution private third party insurance - column 44
+12. PGEZONG Contribution family accidents insurance policies - column 57
+13. PBRAND Contribution fire policies - column 59
+14. APLEZIER Number of boat policies - column 82
+15. ABYSTAND Number of social security insurance policies - column 85
+16. PPERSAUT Contribution car policies (column 47) multiplied APERSAUT Number of car policies (column 68)
+
+So, it can be seen that both socio-demographic and product ownership variables and their interactions are important for predicting the customer CARAVAN insurance policy buying behavior.
+
+The below list of customer ids should be sent mail for Caravan policy -
+
+```{r}
+predicted_customers <- as.numeric(rownames(top_800_customers_lm))
+actual_customers <- which(tictgts2000_df[ , "V86"] == 1)
+intersect(predicted_customers,actual_customers)
+```
+This concludes the project. Thank you for taking your time to read this document.
